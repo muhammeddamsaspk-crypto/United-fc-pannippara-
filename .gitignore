@@ -1,34 +1,469 @@
-# Gradle files
-.gradle/
-build/
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UNITED FC PANNIPPARA</title>
 
-# Local configuration file (sdk path, etc)
-local.properties
+<style>
+body{
+margin:0;
+font-family:Arial;
+background:url('logo.png') center/cover no-repeat fixed;
+color:white;
+}
+.container{
+background:rgba(0,0,0,0.92);
+padding:15px;
+min-height:100vh;
+}
+h1{text-align:center;color:#00ff88;}
+section{
+background:#111;
+padding:15px;
+margin-bottom:20px;
+border-radius:10px;
+box-shadow:0 0 10px lime;
+}
+input,select,button{
+width:100%;
+padding:8px;
+margin-top:5px;
+border:none;
+border-radius:6px;
+}
+button{background:#00aa55;color:white;font-weight:bold;}
+button.red{background:red;}
+button.orange{background:orange;}
+button.small{width:auto;padding:4px 8px;margin:3px;}
+table{
+width:100%;
+border-collapse:collapse;
+font-size:12px;
+}
+th,td{
+border:1px solid #00ff88;
+padding:5px;
+text-align:center;
+}
+.fixture{
+background:#222;
+padding:8px;
+margin-top:6px;
+border-left:4px solid lime;
+}
+.champion{
+text-align:center;
+font-size:28px;
+color:gold;
+animation:bounce 1s infinite;
+}
+@keyframes bounce{
+0%,100%{transform:translateY(0);}
+50%{transform:translateY(-10px);}
+}
+.firework{
+position:fixed;
+width:6px;
+height:6px;
+border-radius:50%;
+animation:explode 1s linear forwards;
+}
+@keyframes explode{
+0%{transform:scale(1);}
+100%{transform:scale(15);opacity:0;}
+}
+.hidden{display:none;}
+</style>
+</head>
 
-# Log/OS Files
-*.log
+<body>
+<div class="container">
 
-# Android Studio generated files and folders
-captures/
-.externalNativeBuild/
-.cxx/
-*.aab
-*.apk
-output-metadata.json
+<h1>⚽ UNITED FC PANNIPPARA ⚽</h1>
 
-# IntelliJ
-*.iml
-.idea/
-misc.xml
-deploymentTargetDropDown.xml
-render.experimental.xml
+<section>
+<h2>Admin Login</h2>
+<input type="password" id="adminPass" placeholder="Password">
+<button onclick="login()">Login</button>
+<button onclick="logout()" class="red">Logout</button>
+<p id="status"></p>
+</section>
 
-# Keystore files
-*.jks
-*.keystore
+<section id="adminPanel" class="hidden">
 
-# Google Services (e.g. APIs or Firebase)
-google-services.json
+<select id="tournamentType">
+<option value="league">League</option>
+<option value="knockout">Knockout</option>
+</select>
 
-# Android Profiling
-*.hprof
+<label>
+<input type="checkbox" id="trophyToggle" checked>
+Enable Trophy Animation
+</label>
+
+<h3>Add Team</h3>
+<input type="text" id="teamName" placeholder="Team Name">
+<button onclick="addTeam()">Add Team</button>
+
+<button onclick="generateTournament()">Generate Tournament</button>
+<button onclick="resetAll()" class="red">Reset Tournament</button>
+
+<h3>Add Committee</h3>
+<input type="text" id="committeeInput" placeholder="Committee Name">
+<button onclick="addCommittee()">Add Committee</button>
+
+<h3>Add Notice</h3>
+<input type="text" id="noticeInput" placeholder="Notice Text">
+<button onclick="addNotice()">Add Notice</button>
+
+</section>
+
+<section>
+<h2>Committee</h2>
+<ul id="committeeList"></ul>
+</section>
+
+<section>
+<h2>Notice Board</h2>
+<ul id="noticeList"></ul>
+</section>
+
+<section id="tableSection">
+<h2>League Table</h2>
+<table>
+<thead>
+<tr>
+<th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th>
+<th>GF</th><th>GA</th><th>GD</th><th>Pts</th>
+</tr>
+</thead>
+<tbody id="tableBody"></tbody>
+</table>
+</section>
+
+<section>
+<h2>Matches</h2>
+<div id="fixtures"></div>
+</section>
+
+</div>
+
+<script>
+
+let admin=false;
+let password="1234";
+
+let teams=JSON.parse(localStorage.getItem("teams"))||[];
+let committee=JSON.parse(localStorage.getItem("committee"))||[];
+let notices=JSON.parse(localStorage.getItem("notices"))||[];
+
+let fixtures=[];
+let tournamentType="";
+let currentRoundName="";
+
+function save(){
+localStorage.setItem("teams",JSON.stringify(teams));
+localStorage.setItem("committee",JSON.stringify(committee));
+localStorage.setItem("notices",JSON.stringify(notices));
+}
+
+function login(){
+if(document.getElementById("adminPass").value===password){
+admin=true;
+document.getElementById("adminPanel").classList.remove("hidden");
+document.getElementById("status").innerText="Admin Logged In";
+}
+}
+
+function logout(){
+admin=false;
+document.getElementById("adminPanel").classList.add("hidden");
+document.getElementById("status").innerText="Logged Out";
+}
+
+function addTeam(){
+if(!admin)return;
+let name=document.getElementById("teamName").value.trim();
+if(!name)return;
+teams.push({name,p:0,w:0,d:0,l:0,gf:0,ga:0});
+document.getElementById("teamName").value="";
+save();
+displayTable();
+}
+
+function generateTournament(){
+if(!admin)return;
+
+fixtures=[];
+resetStats();
+tournamentType=document.getElementById("tournamentType").value;
+
+if(tournamentType==="league"){
+document.getElementById("tableSection").classList.remove("hidden");
+for(let i=0;i<teams.length;i++){
+for(let j=i+1;j<teams.length;j++){
+fixtures.push({home:i,away:j,played:false});
+}
+}
+}else{
+document.getElementById("tableSection").classList.add("hidden");
+generateKnockout([...teams]);
+}
+
+displayFixtures();
+displayTable();
+}
+
+function getRoundName(n){
+if(n>=16)return "Round of 16";
+if(n===8)return "Quarter Final";
+if(n===4)return "Semi Final";
+if(n===2)return "Final";
+return "Knockout Round";
+}
+
+function generateKnockout(list){
+if(list.length<2)return;
+
+fixtures=[];
+currentRoundName=getRoundName(list.length);
+
+let shuffled=list.sort(()=>Math.random()-0.5);
+
+for(let i=0;i<shuffled.length;i+=2){
+if(shuffled[i+1]){
+fixtures.push({
+home:teams.indexOf(shuffled[i]),
+away:teams.indexOf(shuffled[i+1]),
+played:false
+});
+}else{
+generateKnockout([shuffled[i]]);
+return;
+}
+}
+}
+
+function submitMatch(i){
+let hg=parseInt(document.getElementById("h"+i).value);
+let ag=parseInt(document.getElementById("a"+i).value);
+if(isNaN(hg)||isNaN(ag))return;
+
+let f=fixtures[i];
+
+if(tournamentType==="knockout" && hg===ag){
+alert("No draw in knockout!");
+return;
+}
+
+if(f.played && tournamentType==="league"){
+removeResult(f);
+}
+
+if(tournamentType==="league"){
+applyResult(f,hg,ag);
+}
+
+f.played=true;
+f.hg=hg;
+f.ag=ag;
+
+displayFixtures();
+displayTable();
+
+if(tournamentType==="knockout")checkKnockout();
+}
+
+function checkKnockout(){
+if(!fixtures.every(f=>f.played))return;
+
+let winners=[];
+fixtures.forEach(f=>{
+if(f.hg>f.ag)winners.push(teams[f.home]);
+else winners.push(teams[f.away]);
+});
+
+if(winners.length===1){
+showChampion(winners[0].name);
+return;
+}
+
+generateKnockout(winners);
+displayFixtures();
+}
+
+function showChampion(name){
+let enable=document.getElementById("trophyToggle").checked;
+let div=document.getElementById("fixtures");
+
+if(enable){
+div.innerHTML="<div class='champion'>🏆 CHAMPION 🏆<br>"+name+"</div>";
+startFireworks();
+}else{
+div.innerHTML="<h2>"+name+" is Champion</h2>";
+}
+}
+
+function startFireworks(){
+for(let i=0;i<40;i++){
+let fw=document.createElement("div");
+fw.className="firework";
+fw.style.left=Math.random()*100+"%";
+fw.style.top=Math.random()*100+"%";
+fw.style.background="hsl("+Math.random()*360+",100%,50%)";
+document.body.appendChild(fw);
+setTimeout(()=>fw.remove(),1000);
+}
+}
+
+function applyResult(f,hg,ag){
+let home=teams[f.home];
+let away=teams[f.away];
+home.p++;away.p++;
+home.gf+=hg;home.ga+=ag;
+away.gf+=ag;away.ga+=hg;
+if(hg>ag){home.w++;away.l++;}
+else if(hg<ag){away.w++;home.l++;}
+else{home.d++;away.d++;}
+}
+
+function removeResult(f){
+let home=teams[f.home];
+let away=teams[f.away];
+home.p--;away.p--;
+home.gf-=f.hg;home.ga-=f.ag;
+away.gf-=f.ag;away.ga-=f.hg;
+if(f.hg>f.ag){home.w--;away.l--;}
+else if(f.hg<f.ag){away.w--;home.l--;}
+else{home.d--;away.d--;}
+}
+
+function resetStats(){
+teams.forEach(t=>{
+t.p=0;t.w=0;t.d=0;t.l=0;t.gf=0;t.ga=0;
+});
+}
+
+function displayTable(){
+let body=document.getElementById("tableBody");
+body.innerHTML="";
+teams.sort((a,b)=>((b.w*3+b.d)-(a.w*3+a.d)));
+teams.forEach(t=>{
+body.innerHTML+=`
+<tr>
+<td>${t.name}</td>
+<td>${t.p}</td>
+<td>${t.w}</td>
+<td>${t.d}</td>
+<td>${t.l}</td>
+<td>${t.gf}</td>
+<td>${t.ga}</td>
+<td>${t.gf-t.ga}</td>
+<td>${t.w*3+t.d}</td>
+</tr>`;
+});
+}
+
+function displayFixtures(){
+let div=document.getElementById("fixtures");
+div.innerHTML="";
+
+if(tournamentType==="knockout" && currentRoundName){
+div.innerHTML+="<h3 style='color:yellow;text-align:center;'>"+currentRoundName+"</h3>";
+}
+
+fixtures.forEach((f,i)=>{
+let home=teams[f.home].name;
+let away=teams[f.away].name;
+
+let html=`<div class="fixture"><b>${home} vs ${away}</b><br>`;
+
+if(admin){
+html+=`
+<input type="number" id="h${i}" placeholder="Home Goals" value="${f.hg||''}">
+<input type="number" id="a${i}" placeholder="Away Goals" value="${f.ag||''}">
+<button onclick="submitMatch(${i})">Save Score</button>
+<button class="red small" onclick="deleteMatch(${i})">Delete</button>`;
+}
+
+if(f.played){
+html+=`<br>Result: ${f.hg}-${f.ag}`;
+}
+
+html+="</div>";
+div.innerHTML+=html;
+});
+}
+
+function deleteMatch(i){
+let f=fixtures[i];
+if(f.played && tournamentType==="league"){
+removeResult(f);
+}
+fixtures.splice(i,1);
+displayFixtures();
+displayTable();
+}
+
+function addCommittee(){
+if(!admin)return;
+committee.push(document.getElementById("committeeInput").value);
+document.getElementById("committeeInput").value="";
+save();
+displayCommittee();
+}
+
+function addNotice(){
+if(!admin)return;
+notices.push(document.getElementById("noticeInput").value);
+document.getElementById("noticeInput").value="";
+save();
+displayNotice();
+}
+
+function editNotice(i){
+if(!admin)return;
+let newText=prompt("Edit Notice:",notices[i]);
+if(newText!==null){
+notices[i]=newText;
+save();
+displayNotice();
+}
+}
+
+function deleteNotice(i){
+if(!admin)return;
+notices.splice(i,1);
+save();
+displayNotice();
+}
+
+function displayCommittee(){
+let ul=document.getElementById("committeeList");
+ul.innerHTML="";
+committee.forEach(c=>ul.innerHTML+="<li>"+c+"</li>");
+}
+
+function displayNotice(){
+let ul=document.getElementById("noticeList");
+ul.innerHTML="";
+notices.forEach((n,i)=>{
+ul.innerHTML+=`<li>${n}
+${admin?`<button class='orange small' onclick='editNotice(${i})'>Edit</button>
+<button class='red small' onclick='deleteNotice(${i})'>Delete</button>`:''}
+</li>`;
+});
+}
+
+function resetAll(){
+localStorage.clear();
+location.reload();
+}
+
+displayTable();
+displayCommittee();
+displayNotice();
+
+</script>
+</body>
+</html>
